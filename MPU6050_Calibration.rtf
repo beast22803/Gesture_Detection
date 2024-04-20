@@ -1,0 +1,235 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red108\green122\blue122;\red255\green255\blue255;\red210\green220\blue220;
+\red183\green111\blue179;\red111\green193\blue194;\red22\green146\blue150;\red237\green137\blue17;}
+{\*\expandedcolortbl;;\cssrgb\c49870\c54972\c55302;\cssrgb\c100000\c100000\c100000;\cssrgb\c85484\c89016\c88909;
+\cssrgb\c77331\c52624\c75301;\cssrgb\c49914\c79742\c80464;\cssrgb\c4821\c63301\c65256;\cssrgb\c95041\c60853\c6616;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs24 \cf2 \cb3 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 // Arduino sketch that returns calibration offsets for MPU6050 \cf4 \strokec4 \
+\cf2 \strokec2 //   Version 1.1  (31th January 2014)\cf4 \strokec4 \
+\cf2 \strokec2 // Done by Luis R\'f3denas <luisrodenaslorda@gmail.com>\cf4 \strokec4 \
+\cf2 \strokec2 // Based on the I2Cdev library and previous work by Jeff Rowberg <jeff@rowberg.net>\cf4 \strokec4 \
+\cf2 \strokec2 // Updates (of the library) should (hopefully) always be available at https://github.com/jrowberg/i2cdevlib\cf4 \strokec4 \
+\
+\cf2 \strokec2 // These offsets were meant to calibrate MPU6050's internal DMP, but can be also useful for reading sensors. \cf4 \strokec4 \
+\cf2 \strokec2 // The effect of temperature has not been taken into account so I can't promise that it will work if you \cf4 \strokec4 \
+\cf2 \strokec2 // calibrate indoors and then use it outdoors. Best is to calibrate and use at the same room temperature.\cf4 \strokec4 \
+\
+\cf2 \strokec2 /* ==========  LICENSE  ==================================\cf4 \strokec4 \
+\cf2 \strokec2  I2Cdev device library code is placed under the MIT license\cf4 \strokec4 \
+\cf2 \strokec2  Copyright (c) 2011 Jeff Rowberg\cf4 \strokec4 \
+\cf2 \strokec2  \cf4 \strokec4 \
+\cf2 \strokec2  Permission is hereby granted, free of charge, to any person obtaining a copy\cf4 \strokec4 \
+\cf2 \strokec2  of this software and associated documentation files (the "Software"), to deal\cf4 \strokec4 \
+\cf2 \strokec2  in the Software without restriction, including without limitation the rights\cf4 \strokec4 \
+\cf2 \strokec2  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\cf4 \strokec4 \
+\cf2 \strokec2  copies of the Software, and to permit persons to whom the Software is\cf4 \strokec4 \
+\cf2 \strokec2  furnished to do so, subject to the following conditions:\cf4 \strokec4 \
+\cf2 \strokec2  \cf4 \strokec4 \
+\cf2 \strokec2  The above copyright notice and this permission notice shall be included in\cf4 \strokec4 \
+\cf2 \strokec2  all copies or substantial portions of the Software.\cf4 \strokec4 \
+\cf2 \strokec2  \cf4 \strokec4 \
+\cf2 \strokec2  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\cf4 \strokec4 \
+\cf2 \strokec2  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\cf4 \strokec4 \
+\cf2 \strokec2  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\cf4 \strokec4 \
+\cf2 \strokec2  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\cf4 \strokec4 \
+\cf2 \strokec2  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\cf4 \strokec4 \
+\cf2 \strokec2  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\cf4 \strokec4 \
+\cf2 \strokec2  THE SOFTWARE.\cf4 \strokec4 \
+\cf2 \strokec2  =========================================================\cf4 \strokec4 \
+\cf2 \strokec2 Based on the code available on:\cf4 \strokec4 \
+\cf2 \strokec2  https://wired.chillibasket.com/2015/01/calibrating-mpu6050/\cf4 \strokec4 \
+\cf2 \strokec2  */\cf4 \strokec4 \
+\
+\cf2 \strokec2 // I2Cdev and MPU6050 must be installed as libraries\cf4 \strokec4 \
+\pard\pardeftab720\partightenfactor0
+\cf5 \strokec5 #include\cf4 \strokec4  \cf6 \strokec6 "I2Cdev.h"\cf4 \strokec4 \
+\cf5 \strokec5 #include\cf4 \strokec4  \cf6 \strokec6 "MPU6050.h"\cf4 \strokec4 \
+\cf5 \strokec5 #include\cf4 \strokec4  \cf6 \strokec6 "Wire.h"\cf4 \strokec4 \
+\
+\pard\pardeftab720\partightenfactor0
+\cf2 \strokec2 ///////////////////////////////////   CONFIGURATION   /////////////////////////////\cf4 \strokec4 \
+\cf2 \strokec2 //Change this 3 variables if you want to fine tune the skecth to your needs.\cf4 \strokec4 \
+\pard\pardeftab720\partightenfactor0
+\cf7 \strokec7 int\cf4 \strokec4  buffersize=\cf6 \strokec6 1000\cf4 \strokec4 ;\cf2 \strokec2      //Amount of readings used to average, make it higher to get more precision but sketch will be slower  (default:1000)\cf4 \strokec4 \
+\cf7 \strokec7 int\cf4 \strokec4  acel_deadzone=\cf6 \strokec6 8\cf4 \strokec4 ;\cf2 \strokec2      //Acelerometer error allowed, make it lower to get more precision, but sketch may not converge  (default:8)\cf4 \strokec4 \
+\cf7 \strokec7 int\cf4 \strokec4  giro_deadzone=\cf6 \strokec6 1\cf4 \strokec4 ;\cf2 \strokec2      //Giro error allowed, make it lower to get more precision, but sketch may not converge  (default:1)\cf4 \strokec4 \
+\
+MPU6050 accelgyro; \
+\
+\cf7 \strokec7 int16_t\cf4 \strokec4  ax, ay, az,gx, gy, gz;\
+\
+\cf7 \strokec7 int\cf4 \strokec4  mean_ax,mean_ay,mean_az,mean_gx,mean_gy,mean_gz,state=\cf6 \strokec6 0\cf4 \strokec4 ;\
+\cf7 \strokec7 int\cf4 \strokec4  ax_offset,ay_offset,az_offset,gx_offset,gy_offset,gz_offset;\
+\
+\pard\pardeftab720\partightenfactor0
+\cf2 \strokec2 ///////////////////////////////////   SETUP   ////////////////////////////////////\cf4 \strokec4 \
+\pard\pardeftab720\partightenfactor0
+\cf7 \strokec7 void\cf4 \strokec4  \cf8 \strokec8 setup\cf4 \strokec4 () \{\
+\pard\pardeftab720\partightenfactor0
+\cf2 \strokec2   // join I2C bus (I2Cdev library doesn't do this automatically)\cf4 \strokec4 \
+  \cf8 \strokec8 Wire\cf4 \strokec4 .\cf8 \strokec8 begin\cf4 \strokec4 ();\
+\
+\cf2 \strokec2   // initialize serial communication\cf4 \strokec4 \
+  \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 begin\cf4 \strokec4 (\cf6 \strokec6 115200\cf4 \strokec4 );\
+\
+\cf2 \strokec2   // initialize device\cf4 \strokec4 \
+  \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 initialize\cf4 \strokec4 ();\
+\
+\cf2 \strokec2   // wait for ready\cf4 \strokec4 \
+  \cf5 \strokec5 while\cf4 \strokec4  (\cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 available\cf4 \strokec4 () && \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 read\cf4 \strokec4 ());\cf2 \strokec2  // empty buffer\cf4 \strokec4 \
+  \cf5 \strokec5 while\cf4 \strokec4  (!\cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 available\cf4 \strokec4 ())\{\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf8 \strokec8 F\cf4 \strokec4 (\cf6 \strokec6 "Send any character to start sketch.\\n"\cf4 \strokec4 ));\
+    \cf8 \strokec8 delay\cf4 \strokec4 (\cf6 \strokec6 1500\cf4 \strokec4 );\
+  \}                \
+  \cf5 \strokec5 while\cf4 \strokec4  (\cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 available\cf4 \strokec4 () && \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 read\cf4 \strokec4 ());\cf2 \strokec2  // empty buffer again\cf4 \strokec4 \
+\
+\cf2 \strokec2   // start message\cf4 \strokec4 \
+  \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "\\nMPU6050 Calibration Sketch"\cf4 \strokec4 );\
+  \cf8 \strokec8 delay\cf4 \strokec4 (\cf6 \strokec6 2000\cf4 \strokec4 );\
+  \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "\\nYour MPU6050 should be placed in horizontal position, with package letters facing up. \\nDon't touch it until you see a finish message.\\n"\cf4 \strokec4 );\
+  \cf8 \strokec8 delay\cf4 \strokec4 (\cf6 \strokec6 3000\cf4 \strokec4 );\
+\cf2 \strokec2   // verify connection\cf4 \strokec4 \
+  \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 testConnection\cf4 \strokec4 () ? \cf6 \strokec6 "MPU6050 connection successful"\cf4 \strokec4  : \cf6 \strokec6 "MPU6050 connection failed"\cf4 \strokec4 );\
+  \cf8 \strokec8 delay\cf4 \strokec4 (\cf6 \strokec6 1000\cf4 \strokec4 );\
+\cf2 \strokec2   // reset offsets\cf4 \strokec4 \
+  \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setXAccelOffset\cf4 \strokec4 (\cf6 \strokec6 0\cf4 \strokec4 );\
+  \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setYAccelOffset\cf4 \strokec4 (\cf6 \strokec6 0\cf4 \strokec4 );\
+  \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setZAccelOffset\cf4 \strokec4 (\cf6 \strokec6 0\cf4 \strokec4 );\
+  \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setXGyroOffset\cf4 \strokec4 (\cf6 \strokec6 0\cf4 \strokec4 );\
+  \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setYGyroOffset\cf4 \strokec4 (\cf6 \strokec6 0\cf4 \strokec4 );\
+  \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setZGyroOffset\cf4 \strokec4 (\cf6 \strokec6 0\cf4 \strokec4 );\
+\}\
+\
+\cf2 \strokec2 ///////////////////////////////////   LOOP   ////////////////////////////////////\cf4 \strokec4 \
+\pard\pardeftab720\partightenfactor0
+\cf7 \strokec7 void\cf4 \strokec4  \cf8 \strokec8 loop\cf4 \strokec4 () \{\
+  \cf5 \strokec5 if\cf4 \strokec4  (state==\cf6 \strokec6 0\cf4 \strokec4 )\{\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "\\nReading sensors for first time..."\cf4 \strokec4 );\
+    \cf8 \strokec8 meansensors\cf4 \strokec4 ();\
+    state++;\
+    \cf8 \strokec8 delay\cf4 \strokec4 (\cf6 \strokec6 1000\cf4 \strokec4 );\
+  \}\
+\
+  \cf5 \strokec5 if\cf4 \strokec4  (state==\cf6 \strokec6 1\cf4 \strokec4 ) \{\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "\\nCalculating offsets..."\cf4 \strokec4 );\
+    \cf8 \strokec8 calibration\cf4 \strokec4 ();\
+    state++;\
+    \cf8 \strokec8 delay\cf4 \strokec4 (\cf6 \strokec6 1000\cf4 \strokec4 );\
+  \}\
+\
+  \cf5 \strokec5 if\cf4 \strokec4  (state==\cf6 \strokec6 2\cf4 \strokec4 ) \{\
+    \cf8 \strokec8 meansensors\cf4 \strokec4 ();\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "\\nFINISHED!"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\nSensor readings with offsets:\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (mean_ax); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (mean_ay); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (mean_az); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (mean_gx); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (mean_gy); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (mean_gz);\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "Your offsets:\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (ax_offset); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (ay_offset); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (az_offset); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (gx_offset); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (gy_offset); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (gz_offset); \
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "\\nData is printed as: acelX acelY acelZ giroX giroY giroZ"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "Check that your sensor readings are close to 0 0 16384 0 0 0"\cf4 \strokec4 );\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "If calibration was succesful write down your offsets so you can set them in your projects using something similar to mpu.setXAccelOffset(youroffset)"\cf4 \strokec4 );\
+    \cf5 \strokec5 while\cf4 \strokec4  (\cf6 \strokec6 1\cf4 \strokec4 );\
+  \}\
+\}\
+\
+\pard\pardeftab720\partightenfactor0
+\cf2 \strokec2 ///////////////////////////////////   FUNCTIONS   ////////////////////////////////////\cf4 \strokec4 \
+\pard\pardeftab720\partightenfactor0
+\cf7 \strokec7 void\cf4 \strokec4  \cf8 \strokec8 meansensors\cf4 \strokec4 ()\{\
+  \cf7 \strokec7 long\cf4 \strokec4  i=\cf6 \strokec6 0\cf4 \strokec4 ,buff_ax=\cf6 \strokec6 0\cf4 \strokec4 ,buff_ay=\cf6 \strokec6 0\cf4 \strokec4 ,buff_az=\cf6 \strokec6 0\cf4 \strokec4 ,buff_gx=\cf6 \strokec6 0\cf4 \strokec4 ,buff_gy=\cf6 \strokec6 0\cf4 \strokec4 ,buff_gz=\cf6 \strokec6 0\cf4 \strokec4 ;\
+\
+  \cf5 \strokec5 while\cf4 \strokec4  (i<(buffersize+\cf6 \strokec6 101\cf4 \strokec4 ))\{\
+\pard\pardeftab720\partightenfactor0
+\cf2 \strokec2     // read raw accel/gyro measurements from device\cf4 \strokec4 \
+    \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 getMotion6\cf4 \strokec4 (&ax, &ay, &az, &gx, &gy, &gz);\
+    \
+    \cf5 \strokec5 if\cf4 \strokec4  (i>\cf6 \strokec6 100\cf4 \strokec4  && i<=(buffersize+\cf6 \strokec6 100\cf4 \strokec4 ))\{\cf2 \strokec2  //First 100 measures are discarded\cf4 \strokec4 \
+      buff_ax=buff_ax+ax;\
+      buff_ay=buff_ay+ay;\
+      buff_az=buff_az+az;\
+      buff_gx=buff_gx+gx;\
+      buff_gy=buff_gy+gy;\
+      buff_gz=buff_gz+gz;\
+    \}\
+    \cf5 \strokec5 if\cf4 \strokec4  (i==(buffersize+\cf6 \strokec6 100\cf4 \strokec4 ))\{\
+      mean_ax=buff_ax/buffersize;\
+      mean_ay=buff_ay/buffersize;\
+      mean_az=buff_az/buffersize;\
+      mean_gx=buff_gx/buffersize;\
+      mean_gy=buff_gy/buffersize;\
+      mean_gz=buff_gz/buffersize;\
+    \}\
+    i++;\
+    \cf8 \strokec8 delay\cf4 \strokec4 (\cf6 \strokec6 2\cf4 \strokec4 );\cf2 \strokec2  //Needed so we don't get repeated measures\cf4 \strokec4 \
+  \}\
+\}\
+\
+\pard\pardeftab720\partightenfactor0
+\cf7 \strokec7 void\cf4 \strokec4  \cf8 \strokec8 calibration\cf4 \strokec4 ()\{\
+  ax_offset=-mean_ax/\cf6 \strokec6 8\cf4 \strokec4 ;\
+  ay_offset=-mean_ay/\cf6 \strokec6 8\cf4 \strokec4 ;\
+  az_offset=(\cf6 \strokec6 16384\cf4 \strokec4 -mean_az)/\cf6 \strokec6 8\cf4 \strokec4 ;\
+\
+  gx_offset=-mean_gx/\cf6 \strokec6 4\cf4 \strokec4 ;\
+  gy_offset=-mean_gy/\cf6 \strokec6 4\cf4 \strokec4 ;\
+  gz_offset=-mean_gz/\cf6 \strokec6 4\cf4 \strokec4 ;\
+  \cf5 \strokec5 while\cf4 \strokec4  (\cf6 \strokec6 1\cf4 \strokec4 )\{\
+    \cf7 \strokec7 int\cf4 \strokec4  ready=\cf6 \strokec6 0\cf4 \strokec4 ;\
+    \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setXAccelOffset\cf4 \strokec4 (ax_offset);\
+    \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setYAccelOffset\cf4 \strokec4 (ay_offset);\
+    \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setZAccelOffset\cf4 \strokec4 (az_offset);\
+\
+    \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setXGyroOffset\cf4 \strokec4 (gx_offset);\
+    \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setYGyroOffset\cf4 \strokec4 (gy_offset);\
+    \cf8 \strokec8 accelgyro\cf4 \strokec4 .\cf8 \strokec8 setZGyroOffset\cf4 \strokec4 (gz_offset);\
+\
+    \cf8 \strokec8 meansensors\cf4 \strokec4 ();\
+    \cf8 \strokec8 Serial\cf4 \strokec4 .\cf8 \strokec8 println\cf4 \strokec4 (\cf6 \strokec6 "..."\cf4 \strokec4 );\
+\
+    \cf5 \strokec5 if\cf4 \strokec4  (\cf8 \strokec8 abs\cf4 \strokec4 (mean_ax)<=acel_deadzone) ready++;\
+    \cf5 \strokec5 else\cf4 \strokec4  ax_offset=ax_offset-mean_ax/acel_deadzone;\
+\
+    \cf5 \strokec5 if\cf4 \strokec4  (\cf8 \strokec8 abs\cf4 \strokec4 (mean_ay)<=acel_deadzone) ready++;\
+    \cf5 \strokec5 else\cf4 \strokec4  ay_offset=ay_offset-mean_ay/acel_deadzone;\
+\
+    \cf5 \strokec5 if\cf4 \strokec4  (\cf8 \strokec8 abs\cf4 \strokec4 (\cf6 \strokec6 16384\cf4 \strokec4 -mean_az)<=acel_deadzone) ready++;\
+    \cf5 \strokec5 else\cf4 \strokec4  az_offset=az_offset+(\cf6 \strokec6 16384\cf4 \strokec4 -mean_az)/acel_deadzone;\
+\
+    \cf5 \strokec5 if\cf4 \strokec4  (\cf8 \strokec8 abs\cf4 \strokec4 (mean_gx)<=giro_deadzone) ready++;\
+    \cf5 \strokec5 else\cf4 \strokec4  gx_offset=gx_offset-mean_gx/(giro_deadzone+\cf6 \strokec6 1\cf4 \strokec4 );\
+\
+    \cf5 \strokec5 if\cf4 \strokec4  (\cf8 \strokec8 abs\cf4 \strokec4 (mean_gy)<=giro_deadzone) ready++;\
+    \cf5 \strokec5 else\cf4 \strokec4  gy_offset=gy_offset-mean_gy/(giro_deadzone+\cf6 \strokec6 1\cf4 \strokec4 );\
+\
+    \cf5 \strokec5 if\cf4 \strokec4  (\cf8 \strokec8 abs\cf4 \strokec4 (mean_gz)<=giro_deadzone) ready++;\
+    \cf5 \strokec5 else\cf4 \strokec4  gz_offset=gz_offset-mean_gz/(giro_deadzone+\cf6 \strokec6 1\cf4 \strokec4 );\
+\
+    \cf5 \strokec5 if\cf4 \strokec4  (ready==\cf6 \strokec6 6\cf4 \strokec4 ) \cf5 \strokec5 break\cf4 \strokec4 ;\
+  \}\
+\}\
+\
+}

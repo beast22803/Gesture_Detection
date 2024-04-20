@@ -1,0 +1,93 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red108\green122\blue122;\red255\green255\blue255;\red210\green220\blue220;
+\red183\green111\blue179;\red111\green193\blue194;\red237\green137\blue17;\red22\green146\blue150;}
+{\*\expandedcolortbl;;\cssrgb\c49870\c54972\c55302;\cssrgb\c100000\c100000\c100000;\cssrgb\c85484\c89016\c88909;
+\cssrgb\c77331\c52624\c75301;\cssrgb\c49914\c79742\c80464;\cssrgb\c95041\c60853\c6616;\cssrgb\c4821\c63301\c65256;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs24 \cf2 \cb3 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /*\cf4 \strokec4 \
+\cf2 \strokec2  * Based on I2C device class (I2Cdev) Arduino sketch for MPU6050 class by Jeff Rowberg <jeff@rowberg.net>\cf4 \strokec4 \
+\cf2 \strokec2  * and Edge Impulse Data Forwarder Exampe (Arduino) - https://docs.edgeimpulse.com/docs/cli-data-forwarder\cf4 \strokec4 \
+\cf2 \strokec2  * \cf4 \strokec4 \
+\cf2 \strokec2  * Developed by M.Rovai @11May23\cf4 \strokec4 \
+\cf2 \strokec2  */\cf4 \strokec4 \
+\
+\cf5 \strokec5 #include\cf4 \strokec4  \cf6 \strokec6 "I2Cdev.h"\cf4 \strokec4 \
+\cf5 \strokec5 #include\cf4 \strokec4  \cf6 \strokec6 "MPU6050.h"\cf4 \strokec4 \
+\cf5 \strokec5 #include\cf4 \strokec4  \cf6 \strokec6 "Wire.h"\cf4 \strokec4 \
+\
+\cf5 \strokec5 #define\cf4 \strokec4  \cf7 \strokec7 FREQUENCY_HZ\cf4 \strokec4         \cf6 \strokec6 50\cf4 \strokec4 \
+\cf5 \strokec5 #define\cf4 \strokec4  \cf7 \strokec7 INTERVAL_MS\cf4 \strokec4          (\cf6 \strokec6 1000\cf4 \strokec4  / (FREQUENCY_HZ + \cf6 \strokec6 1\cf4 \strokec4 ))\
+\cf5 \strokec5 #define\cf4 \strokec4  \cf7 \strokec7 ACC_RANGE\cf4 \strokec4            \cf6 \strokec6 1\cf2 \strokec2  // 0: -/+2G; 1: +/-4G\cf4 \strokec4 \
+\
+\cf2 \strokec2 // convert factor g to m/s2 ==> [-32768, +32767] ==> [-2g, +2g]\cf4 \strokec4 \
+\cf5 \strokec5 #define\cf4 \strokec4  \cf7 \strokec7 CONVERT_G_TO_MS2\cf4 \strokec4     (\cf6 \strokec6 9.81\cf4 \strokec4 /(\cf6 \strokec6 16384.0\cf4 \strokec4 /(\cf6 \strokec6 1.\cf4 \strokec4 +ACC_RANGE))) \
+\
+\cf8 \strokec8 static\cf4 \strokec4  \cf8 \strokec8 unsigned\cf4 \strokec4  \cf8 \strokec8 long\cf4 \strokec4  last_interval_ms = \cf6 \strokec6 0\cf4 \strokec4 ;\
+\
+MPU6050 imu;\
+\cf8 \strokec8 int16_t\cf4 \strokec4  ax, ay, az;\
+\
+\cf8 \strokec8 void\cf4 \strokec4  \cf7 \strokec7 setup\cf4 \strokec4 () \{\
+  \
+    \cf7 \strokec7 Serial\cf4 \strokec4 .\cf7 \strokec7 begin\cf4 \strokec4 (\cf6 \strokec6 115200\cf4 \strokec4 );\
+\
+    \
+\cf2 \strokec2     // initialize device\cf4 \strokec4 \
+    \cf7 \strokec7 Serial\cf4 \strokec4 .\cf7 \strokec7 println\cf4 \strokec4 (\cf6 \strokec6 "Initializing I2C devices..."\cf4 \strokec4 );\
+    \cf7 \strokec7 Wire\cf4 \strokec4 .\cf7 \strokec7 begin\cf4 \strokec4 ();\
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 initialize\cf4 \strokec4 ();\
+    \cf7 \strokec7 delay\cf4 \strokec4 (\cf6 \strokec6 10\cf4 \strokec4 );\
+    \
+\cf2 \strokec2 //    // verify connection\cf4 \strokec4 \
+\cf2 \strokec2 //    if (imu.testConnection()) \{\cf4 \strokec4 \
+\cf2 \strokec2 //      Serial.println("IMU connected");\cf4 \strokec4 \
+\cf2 \strokec2 //    \}\cf4 \strokec4 \
+\cf2 \strokec2 //    else \{\cf4 \strokec4 \
+\cf2 \strokec2 //      Serial.println("IMU Error");\cf4 \strokec4 \
+\cf2 \strokec2 //    \}\cf4 \strokec4 \
+    \cf7 \strokec7 delay\cf4 \strokec4 (\cf6 \strokec6 300\cf4 \strokec4 );\
+    \
+\cf2 \strokec2     //Set MCU 6050 OffSet Calibration \cf4 \strokec4 \
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 setXAccelOffset\cf4 \strokec4 (-\cf6 \strokec6 4732\cf4 \strokec4 );\
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 setYAccelOffset\cf4 \strokec4 (\cf6 \strokec6 4703\cf4 \strokec4 );\
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 setZAccelOffset\cf4 \strokec4 (\cf6 \strokec6 8867\cf4 \strokec4 );\
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 setXGyroOffset\cf4 \strokec4 (\cf6 \strokec6 61\cf4 \strokec4 );\
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 setYGyroOffset\cf4 \strokec4 (-\cf6 \strokec6 73\cf4 \strokec4 );\
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 setZGyroOffset\cf4 \strokec4 (\cf6 \strokec6 35\cf4 \strokec4 );\
+    \
+\cf2 \strokec2     /* Set full-scale accelerometer range.\cf4 \strokec4 \
+\cf2 \strokec2      * 0 = +/- 2g\cf4 \strokec4 \
+\cf2 \strokec2      * 1 = +/- 4g\cf4 \strokec4 \
+\cf2 \strokec2      * 2 = +/- 8g\cf4 \strokec4 \
+\cf2 \strokec2      * 3 = +/- 16g\cf4 \strokec4 \
+\cf2 \strokec2      */\cf4 \strokec4 \
+    \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 setFullScaleAccelRange\cf4 \strokec4 (ACC_RANGE);\
+\}\
+\
+\cf8 \strokec8 void\cf4 \strokec4  \cf7 \strokec7 loop\cf4 \strokec4 () \{\
+\
+      \cf5 \strokec5 if\cf4 \strokec4  (\cf7 \strokec7 millis\cf4 \strokec4 () > last_interval_ms + INTERVAL_MS) \{\
+        last_interval_ms = \cf7 \strokec7 millis\cf4 \strokec4 ();\
+        \
+\cf2 \strokec2         // read raw accel/gyro measurements from device\cf4 \strokec4 \
+        \cf7 \strokec7 imu\cf4 \strokec4 .\cf7 \strokec7 getAcceleration\cf4 \strokec4 (&ax, &ay, &az);\
+\
+\cf2 \strokec2         // converting to m/s2\cf4 \strokec4 \
+        \cf8 \strokec8 float\cf4 \strokec4  ax_m_s2 = ax * CONVERT_G_TO_MS2;\
+        \cf8 \strokec8 float\cf4 \strokec4  ay_m_s2 = ay * CONVERT_G_TO_MS2;\
+        \cf8 \strokec8 float\cf4 \strokec4  az_m_s2 = az * CONVERT_G_TO_MS2;\
+\
+        \cf7 \strokec7 Serial\cf4 \strokec4 .\cf7 \strokec7 print\cf4 \strokec4 (ax_m_s2); \
+        \cf7 \strokec7 Serial\cf4 \strokec4 .\cf7 \strokec7 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+        \cf7 \strokec7 Serial\cf4 \strokec4 .\cf7 \strokec7 print\cf4 \strokec4 (ay_m_s2); \
+        \cf7 \strokec7 Serial\cf4 \strokec4 .\cf7 \strokec7 print\cf4 \strokec4 (\cf6 \strokec6 "\\t"\cf4 \strokec4 );\
+        \cf7 \strokec7 Serial\cf4 \strokec4 .\cf7 \strokec7 println\cf4 \strokec4 (az_m_s2); \
+      \}\
+\}\
+\
+}
